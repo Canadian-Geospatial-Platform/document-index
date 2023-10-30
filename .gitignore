@@ -3,3 +3,4 @@ awscliv2.zip
 data/
 utils/__pycache__
 src/preprocess.ipynb
+aws_credentials.json
