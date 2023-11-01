@@ -21,7 +21,8 @@ obj = s3.Object("webpresence-geocore-geojson-to-parquet-dev", "records.parquet")
 df = pd.read_parquet(io.BytesIO(obj.get()['Body'].read()))
 # df = df.iloc[6974:]
 # print(df.columns)
-# print(df.iloc[0]['features_properties_id'])
+# print(df.iloc[0]['features_properties_options'])
+# print("length is ", len(ast.literal_eval(df.iloc[0]['features_properties_options'])))
 # print(type(df.iloc[6974]['features_properties_title_en']))
 
 
@@ -44,11 +45,11 @@ df = pd.read_parquet(io.BytesIO(obj.get()['Body'].read()))
 # Create a table.
 table_name = "docinx"
 
-# table = create_table(table_name)
+table = create_table(table_name)
 
 # # # Populate the table with the features_properties_options json. (for each uuid).
 
-ranges = [(7000, len(df))] # Exclusive second argument.
+ranges = [(0, len(df))] # Exclusive second argument.
 #, (1801, 4000), (4000, 6000), (6000, 9000), (9000, len(df))]
 
 for start_row, end_row in ranges:

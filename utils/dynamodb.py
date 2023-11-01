@@ -63,35 +63,37 @@ def batch_write_items_into_table(df, TableName):
             url = 'None'
             data_type = "None"
             features_options = ast.literal_eval(df.iloc[i]['features_properties_options'])
-            # print(features_options)
-            if len(features_options) > 0:
-                url = ast.literal_eval(df.iloc[i]['features_properties_options'])[0]['url']
-                mimetype,encoding = mimetypes.guess_type(url)
-                
-                if url.endswith('pjson'):
-                    data_type = 'json'
-                    
-                elif mimetype is not None:
-                    data_type = mimetype.split("/")[1]
-                
-                else:
-                    data_type = 'html'
-            print("url: ", url)
-            print("datatype: ", data_type)
-            
             uuid = df.iloc[i]['features_properties_id']
             name = df.iloc[i]['features_properties_title_en']
-            print(uuid)
-            print(name)
+            # print(features_options)
+            if len(features_options) > 0:
+                options_data = []
+                for item in features_options:
+                    url = item['url']
+                    mimetype,encoding = mimetypes.guess_type(url)
+                
+                    if url.endswith('pjson'):
+                        data_type = 'application/json'
+                        
+                    elif mimetype is not None:
+                        data_type = mimetype
+                    
+                    else:
+                        data_type = 'application/html'
+                    options_data.append(
+                        {
+                            'data_type': data_type,
+                            'url': url
+                        }
+                    )
+                    
             try:
                 if uuid is not None:
                     batch.put_item(
                         Item={
                             'features_properties_id': uuid,
-                            'url': url,
                             'name_en': name,
-                            'data_type:': data_type,
-                            'created_at': dateTime
+                            'options': options_data
                         }
                     )
             except:
