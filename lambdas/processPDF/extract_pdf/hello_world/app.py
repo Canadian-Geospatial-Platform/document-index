@@ -1,8 +1,8 @@
 import json
-import PyPDF2
-import requests
 import boto3
-from io import BytesIO
+import ast
+from extract_data import scrape_data_from_url
+from tqdm import tqdm
 
 def lambda_handler(event, context):
     """Sample pure Lambda function
@@ -34,21 +34,63 @@ def lambda_handler(event, context):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(table_name)
     
-    data = table.scan()
-    print(data['Items'][11])
+    scan_response = table.scan()
+    data = scan_response['Items']
+    while 'LastEvaluatedKey' in scan_response:
+        print(scan_response['LastEvaluatedKey'])
+        scan_response = table.scan(ExclusiveStartKey=scan_response['LastEvaluatedKey'])
+        data.extend(scan_response['Items'])
+        
+    # print(data['Items'][11])
+    # print(data['Items'][11].keys())
+    # print(data['Items'][11]['text_data'])
+    # print("text_data length", len(ast.literal_eval(data['Items'][11]['text_data'])))
+    # print(len(data['Items'][11]['options']))
+    # print("\n")
+    # print(data['Items'][12])
+    # print(len(data))
     
+    for item in tqdm(data):
+        uuid = item['features_properties_id']
+        all_options = item['options']
+        all_text_data = []
+        
+        if len(all_options) > 0:
+            for option in all_options:
+                data_type = option['data_type']
+                url = option['url']
+                # print("URL: ", url)
+                
+                # Retrieve the text from the url.
+                try:
+                    text = scrape_data_from_url(data_type, url)  # If this fails, the 'text' variable will contain 'cannot_fetch_url'.
+                    # print("retrieved text is: ", text)
+                except Exception as e:
+                    print("Cannot fetch url data")
+                    # print(e)
+                    # text = 'cannot_fetch_url'
+                all_text_data.append({'data_type': data_type, 'data': text})
+            
+        # print("Length of all_text_data: ", len(all_text_data))
+        # Now update the record in the dynamodb table for the specifc uuid.
+        # try:
+        # print("All_text_data: ", all_text_data)
+        # try:
+        response = table.update_item(
+            Key={'features_properties_id': uuid},
+            UpdateExpression="set text_data=:p",
+            ExpressionAttributeValues={":p": str(all_text_data)},
+            ReturnValues="UPDATED_NEW"
+        )
+            
+        # except
+        #     print()
+            
+        # else:
+        # print(response["Attributes"])
+        
+    return True
     
-    # Now we extract the text from the pdf at the url.
-    # response = requests.get(pdf_url)
-    # pdf_data = response.content
-    # text_data = ""
-    # success_variable = False
-    
-    # if response.status_code == 200: # Success
-    #     pdf = PyPDF2.PdfReader(BytesIO(pdf_data))
-    #     success_variable = True # Change it to True
-    #     for page in range(len(pdf.pages)):
-    #         text_data += pdf.pages[page].extract_text()
     
     
     # # Store the data into the dynamodb table.        
