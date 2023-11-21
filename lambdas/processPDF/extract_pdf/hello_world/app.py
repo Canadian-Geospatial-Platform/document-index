@@ -4,6 +4,7 @@ import ast
 from extract_data import scrape_data_from_url
 from tqdm import tqdm
 
+
 def lambda_handler(event, context):
     """Sample pure Lambda function
 
@@ -34,6 +35,7 @@ def lambda_handler(event, context):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(table_name)
     
+    # First scan the table to get all the items. Make sure to have the credentials set up.
     scan_response = table.scan()
     data = scan_response['Items']
     while 'LastEvaluatedKey' in scan_response:
@@ -41,67 +43,58 @@ def lambda_handler(event, context):
         scan_response = table.scan(ExclusiveStartKey=scan_response['LastEvaluatedKey'])
         data.extend(scan_response['Items'])
         
-    # print(data['Items'][11])
-    # print(data['Items'][11].keys())
-    # print(data['Items'][11]['text_data'])
-    # print("text_data length", len(ast.literal_eval(data['Items'][11]['text_data'])))
-    # print(len(data['Items'][11]['options']))
-    # print("\n")
-    # print(data['Items'][12])
-    # print(len(data))
-    
+    print(len(data))
+    # data = data[4000:6000] # Doing 2000 items at a time because the short-term credentials expire after 4 hours.
     for item in tqdm(data):
         uuid = item['features_properties_id']
         all_options = item['options']
         all_text_data = []
         
         if len(all_options) > 0:
-            for option in all_options:
+            for op_num, option in enumerate(all_options):
+                print("Option number: ", op_num)
                 data_type = option['data_type']
                 url = option['url']
-                # print("URL: ", url)
+                print("URL: ", url)
                 
                 # Retrieve the text from the url.
                 try:
                     text = scrape_data_from_url(data_type, url)  # If this fails, the 'text' variable will contain 'cannot_fetch_url'.
-                    # print("retrieved text is: ", text)
+                    print("fetched text")
                 except Exception as e:
-                    print("Cannot fetch url data")
-                    # print(e)
-                    # text = 'cannot_fetch_url'
+                    print("Cannot fetch url data or taking too long.")
+                    print(e)
+                    text = 'cannot_fetch_url'
+                
+                # If the size of the 'text' variable is greater than 0.5 KB, then truncate the text to that many characters.
+                # Commenting it out for now. This was the previous code snippet.
+                # if len(text) > 10000:
+                #     text = text[:10000]
                 all_text_data.append({'data_type': data_type, 'data': text})
+            print("Length of all_text_data: ", len(str(all_text_data).encode('utf-8')))
             
-        # print("Length of all_text_data: ", len(all_text_data))
-        # Now update the record in the dynamodb table for the specifc uuid.
-        # try:
-        # print("All_text_data: ", all_text_data)
-        # try:
-        response = table.update_item(
-            Key={'features_properties_id': uuid},
-            UpdateExpression="set text_data=:p",
-            ExpressionAttributeValues={":p": str(all_text_data)},
-            ReturnValues="UPDATED_NEW"
-        )
+        try:
+            response = table.update_item(
+                Key={'features_properties_id': uuid},
+                UpdateExpression="set text_data=:p",
+                ExpressionAttributeValues={":p": str(all_text_data)},
+                ReturnValues="UPDATED_NEW"
+            )
             
-        # except
-        #     print()
+        except:
+            print("Could not update the table. Storing an empty list.")
+            response = table.update_item(
+                Key={'features_properties_id': uuid},
+                UpdateExpression="set text_data=:p",
+                ExpressionAttributeValues={":p": str([])},
+                ReturnValues="UPDATED_NEW"
+            )
             
-        # else:
-        # print(response["Attributes"])
-        
     return True
     
     
-    
-    # # Store the data into the dynamodb table.        
-    # return {
-    #     'success': success_variable, 
-    #     'body': json.dumps(
-    #             {
-    #                 'text': str(text_data)
-    #             }
-    #         )
-    #     }
-   
+
+# Running 'python app.py' will run the lambda_handler function.
+lambda_handler(None, None)
 
     
