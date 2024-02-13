@@ -46,61 +46,43 @@ def create_table(TableName, dynamodb=None):
     return table
     
     
-# Batch writing items into a table 
 def batch_write_items_into_table(df, TableName):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(TableName)
-
-    #Get current date and time
-    dateTime = datetime.datetime.utcnow().now()
-    dateTime = dateTime.isoformat()[:-7] + 'Z'
     
     with table.batch_writer(overwrite_by_pkeys=["features_properties_id"]) as batch:
         for i in range(len(df)):
             print("Row: ", i)
-            # try: 
-            # Get the application type.
-            url = 'None'
-            data_type = "None"
-            features_options = ast.literal_eval(df.iloc[i]['features_properties_options'])
-            uuid = df.iloc[i]['features_properties_id']
-            name = df.iloc[i]['features_properties_title_en']
-            # print(features_options)
-            if len(features_options) > 0:
-                options_data = []
-                for item in features_options:
-                    url = item['url']
-                    mimetype,encoding = mimetypes.guess_type(url)
-                
-                    if url.endswith('pjson'):
-                        data_type = 'application/json'
-                        
-                    elif mimetype is not None:
-                        data_type = mimetype
-                    
-                    else:
-                        data_type = 'application/html'
-                    options_data.append(
-                        {
-                            'data_type': data_type,
-                            'url': url
-                        }
-                    )
-                    
+            features_properties_id = df.iloc[i]['features_properties_id']
+            features_properties_options = ast.literal_eval(df.iloc[i]['features_properties_options'])
+
+            documents = []
+            for item in features_properties_options:
+                url = item.get('url', 'None')
+                title = item.get('title', 'None')
+                text = item.get('text', 'None')
+
+                mimetype, encoding = mimetypes.guess_type(url)
+                doc_type = mimetype if mimetype else 'application/html'
+
+                document = {
+                    "url": url,
+                    "title": title,
+                    "type": doc_type,
+                    "text": text
+                }
+                documents.append(document)
+            
+            item_data = {
+                "features_properties_id": features_properties_id,
+                "documents": documents
+            }
+
             try:
-                if uuid is not None:
-                    batch.put_item(
-                        Item={
-                            'features_properties_id': uuid,
-                            'name_en': name,
-                            'options': options_data
-                        }
-                    )
-            except:
-                print("Could not store data in dynamodb table")
-                
-            # except ClientError as e:
-            #     print(e.response['Error']['Message'])
+                batch.put_item(Item=item_data)
+            except Exception as e:
+                print(f"Could not store data for row {i} in dynamodb table: {e}")
+    
     print("All items added to the table successfully!")
 
 
