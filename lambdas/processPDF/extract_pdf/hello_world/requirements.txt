@@ -1,6 +1,0 @@
-requests
-urllib3<2
-PyPDF2
-beautifulsoup4==4.12.2
-tqdm
-wrapt-timeout-decorator

@@ -1,27 +1,34 @@
 import requests
 from bs4 import BeautifulSoup
-import docx
-import PyPDF2
+# import docx
+# import PyPDF2
 import io
 
+
+"""
+remove extra white spaces
+headers
+-> lambda function to be triggered
+how big the modules are ?
+"""
 def fetch_data(url):
     """ Fetch data from URL """
     response = requests.get(url)
     return response.content
 
-def extract_text_from_docx(docx_content):
-    """ Extract text from a docx file """
-    doc = docx.Document(io.BytesIO(docx_content))
-    return "\n".join([para.text for para in doc.paragraphs])
+# def extract_text_from_docx(docx_content):
+#     """ Extract text from a docx file """
+#     doc = docx.Document(io.BytesIO(docx_content))
+#     return "\n".join([para.text for para in doc.paragraphs])
 
-def extract_text_from_pdf(pdf_content):
-    """ Extract text from a pdf file """
-    with io.BytesIO(pdf_content) as open_pdf_file:
-        reader = PyPDF2.PdfReader(open_pdf_file)
-        text = []
-        for page in range(len(reader.pages)):
-            text.append(reader.pages[page].extract_text())
-        return "\n".join(text)
+# def extract_text_from_pdf(pdf_content):
+#     """ Extract text from a pdf file """
+#     with io.BytesIO(pdf_content) as open_pdf_file:
+#         reader = PyPDF2.PdfReader(open_pdf_file)
+#         text = []
+#         for page in range(len(reader.pages)):
+#             text.append(reader.pages[page].extract_text())
+#         return "\n".join(text)
 
 def extract_text_from_html(html_content):
     """ Extract text from an HTML file """
@@ -38,6 +45,28 @@ def save_text_to_file(text, file_type, index):
         file.write(text)
     print(f"Saved extracted text to {filename}")
     
+def process_url(url,file_type):
+    print(f"Fetching and extracting text from: {url}")
+
+    try:
+        content = fetch_data(url)
+        
+        # if file_type == 'pdf':
+        #     extracted_text = extract_text_from_pdf(content)
+        # elif file_type == 'docx':
+        #     extracted_text = extract_text_from_docx(content)
+        if file_type == 'text':
+            extracted_text = extract_text_from_txt(content)
+        elif file_type == 'application/html':
+            extracted_text = extract_text_from_html(content)
+        else:
+            extracted_text = "Unsupported file type"
+        
+        return extracted_text
+
+    except Exception as e:
+        print(f"Failed to process {url}. Error: {e}")
+
 
 if __name__ == '__main__':
     # Assume the previous functions are already defined

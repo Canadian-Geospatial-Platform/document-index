@@ -1,5 +1,0 @@
-requests
-json
-boto3
-pandas
-pyarrow

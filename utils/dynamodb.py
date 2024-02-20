@@ -1,10 +1,4 @@
-"""
-Filename: dynamodb.py
-Description: This script includes functions to integrate DynamoDB table using Python SDK boto3, such as create/delete/update a table and or a item.  
-Author: Xinli Cai
-Date: October 23, 2023
-Version: 1.0
-"""
+
 
 import boto3 
 from botocore.exceptions import ClientError
@@ -12,6 +6,7 @@ import datetime
 import os
 import ast
 import mimetypes
+from process_text import process_url
 
 region = 'ca-central-1'
 # Create a dynamodb table
@@ -45,10 +40,15 @@ def create_table(TableName, dynamodb=None):
     print(f"Table {TableName} created successfully!")
     return table
     
+def update_item_text(TableName):
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table(TableName)
     
 def batch_write_items_into_table(df, TableName):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(TableName)
+    # print(f"an items is ",table.get_item(Key={"features_properties_id": 'ffab6e8d-fa7f-41d8-bb16-7b1e70f9fd0b'}))
+    # return 
     
     with table.batch_writer(overwrite_by_pkeys=["features_properties_id"]) as batch:
         for i in range(len(df)):
@@ -61,10 +61,10 @@ def batch_write_items_into_table(df, TableName):
                 url = item.get('url', 'None')
                 title = item.get('title', 'None')
                 text = item.get('text', 'None')
-
+                
                 mimetype, encoding = mimetypes.guess_type(url)
                 doc_type = mimetype if mimetype else 'application/html'
-
+                text = process_url(url,doc_type)
                 document = {
                     "url": url,
                     "title": title,
