@@ -7,8 +7,20 @@ import os
 import ast
 import mimetypes
 from process_text import process_url
+from datetime import datetime
+from urllib.parse import urlparse, parse_qs
+
 
 region = 'ca-central-1'
+EXTENSION_TO_MIME = {
+    'json': 'application/json',
+    'xml': 'application/xml',
+    'kml': 'application/vnd.google-earth.kml+xml',
+    'vrt': 'application/vnd.vrt',
+    'geojson': 'application/json',
+    
+    # Add other extensions and MIME types as needed
+}
 # Create a dynamodb table
 def create_table(TableName, dynamodb=None):
     """     
@@ -43,6 +55,29 @@ def create_table(TableName, dynamodb=None):
 def update_item_text(TableName):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(TableName)
+
+def get_mime_type(url):
+    if url:
+        # Check if the URL ends with a known file extension
+        for ext, mime_type in EXTENSION_TO_MIME.items():
+            if url.lower().endswith(f"{ext}"):
+                return mime_type
+        # Fallback to using mimetypes if no known extension is found
+        mimetype, _ = mimetypes.guess_type(url)
+        if mimetype:
+            return mimetype 
+        parsed_url = urlparse(url)
+        query_params = parse_qs(parsed_url.query)
+
+        # Check if any of the query parameters indicate a content type
+        for key, value in query_params.items():
+            if 'json' in value[0].lower():
+                return 'application/json'
+            elif 'text' in value[0].lower():
+                return 'text/plain'
+            elif 'xml' in value[0].lower():
+                return 'application/xml'
+        return 'application/html'
     
 def batch_write_items_into_table(df, TableName):
     dynamodb = boto3.resource('dynamodb')
@@ -61,10 +96,11 @@ def batch_write_items_into_table(df, TableName):
                 url = item.get('url', 'None')
                 title = item.get('title', 'None')
                 text = item.get('text', 'None')
+                current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 
-                mimetype, encoding = mimetypes.guess_type(url)
-                doc_type = mimetype if mimetype else 'application/html'
-                text = process_url(url,doc_type)
+                
+                doc_type = doc_type = get_mime_type(url)
+                # text = process_url(url,doc_type)
                 document = {
                     "url": url,
                     "title": title,
@@ -75,7 +111,9 @@ def batch_write_items_into_table(df, TableName):
             
             item_data = {
                 "features_properties_id": features_properties_id,
-                "documents": documents
+                "documents": documents,
+                "created_at": current_timestamp,
+                "updated_at": current_timestamp
             }
 
             try:
