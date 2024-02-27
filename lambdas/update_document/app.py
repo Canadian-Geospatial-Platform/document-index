@@ -2,24 +2,26 @@ import json
 import awswrangler as wr
 import pandas as pd
 # import requests
+import asyncio
+import datetime
 
-from utils.dynamodb import create_table,batch_write_items_into_table
+
+from utils.update_documents import update_documents
 
 BUCKET_NAME = 'webpresence-geocore-geojson-to-parquet-dev'
 
-def get_records():
-    df = wr.s3.read_parquet(f"s3://{BUCKET_NAME}/", dataset=True)
-    return df
+
 
 def lambda_handler(event, context):
-    df = get_records()
     table_name = 'docindex_v2'
-    # create_table('docindx_v2')
-    batch_write_items_into_table(df,table_name)
-    
-    
 
+    # Calculate yesterday's date
+    yesterday = datetime.datetime.now() - datetime.timedelta(days=1)
+    yesterday_str = yesterday.strftime('%Y-%m-%dT%H:%M:%S')
 
+    # Call update_documents function
+    asyncio.run(update_documents(table_name))
+  
     return {
         "statusCode": 200,
         "body": json.dumps({

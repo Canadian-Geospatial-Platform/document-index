@@ -97,6 +97,7 @@ def batch_write_items_into_table(df, TableName):
                 title = item.get('title', 'None')
                 text = item.get('text', 'None')
                 current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
                 
                 
                 doc_type = doc_type = get_mime_type(url)
