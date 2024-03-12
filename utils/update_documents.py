@@ -11,7 +11,13 @@ from aws_lambda_powertools import Logger
 
 # Initialize Logger
 logger = Logger(service="doc_index_update_documents", level="INFO")
-
+s3 = boto3.client('s3')
+bucket_name = 'nlp-data-preprocessing'
+def save_checkpoint(processed_items):
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    filename = f"doc_index_processed_items_checkpoint_{timestamp}.json"
+    s3.put_object(Bucket=bucket_name, Key=filename, Body=json.dumps(processed_items))
+    print(f"Checkpoint saved: {filename}")
 async def update_single_document(document):
     url = document.get('url')
     doc_type = document.get('type')
@@ -30,7 +36,8 @@ async def update_documents(TableName, last_updated_before=None):
     logger.info("Starting the document update process")
     response = table.scan()
     items = response['Items']
-
+    count=0
+    checkpoint_size=100
     for item in items:
         updated_at = item.get('updated_at')
         if updated_at:
@@ -53,8 +60,13 @@ async def update_documents(TableName, last_updated_before=None):
                     table.put_item(Item=item)
                     processed_items.append(item["features_properties_id"])
                     logger.info(f'Updated item: {item["features_properties_id"]}')
+                    count+=1
+                    print(count)
                 except Exception as e:
                     logger.warn(f'unsucessfull attempt for {item["features_properties_id"]} error : {e}')
+        if count%checkpoint_size==0 and count>0:
+            save_checkpoint(processed_items)
+        
         
     logger.info("All applicable documents updated successfully")
 
@@ -65,7 +77,7 @@ async def update_documents(TableName, last_updated_before=None):
         json.dump(processed_items, file)
     logger.info(f"Processed items saved to {filename}")
 
-    # upload the file to S3
+    # Optionally, upload the file to S3
     # s3_client = boto3.client('s3')
     # bucket_name = 'your_bucket_name'
     # s3_client.upload_file(filename, bucket_name, filename)
