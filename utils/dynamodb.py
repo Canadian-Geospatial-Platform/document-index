@@ -9,6 +9,9 @@ import mimetypes
 from process_text import process_url
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs
+from aws_lambda_powertools import Logger
+
+logger = Logger(service="your_service_name", level="INFO")
 
 
 region = 'ca-central-1'
@@ -49,7 +52,7 @@ def create_table(TableName, dynamodb=None):
     )
     # Wait until the table exists.
     table.meta.client.get_waiter('table_exists').wait(TableName=TableName)
-    print(f"Table {TableName} created successfully!")
+    logger.info(f"Table {TableName} created successfully!")  
     return table
     
 def update_item_text(TableName):
@@ -84,6 +87,7 @@ def batch_write_items_into_table(df, TableName):
     table = dynamodb.Table(TableName)
     # print(f"an items is ",table.get_item(Key={"features_properties_id": 'ffab6e8d-fa7f-41d8-bb16-7b1e70f9fd0b'}))
     # return 
+    include_types = ['pdf','html','xml','txt','text','json']
     
     with table.batch_writer(overwrite_by_pkeys=["features_properties_id"]) as batch:
         for i in range(len(df)):
@@ -92,19 +96,25 @@ def batch_write_items_into_table(df, TableName):
             features_properties_options = ast.literal_eval(df.iloc[i]['features_properties_options'])
 
             documents = []
-            for item in features_properties_options:
+            for i,item in enumerate(features_properties_options):
                 url = item.get('url', 'None')
                 title = item.get('title', 'None')
                 text = item.get('text', 'None')
                 current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
                 
                 
                 doc_type = doc_type = get_mime_type(url)
+                found=False
+                for t in include_types:
+                    if t in doc_type:
+                        found=True
+                        break
+                if not found:
+                    continue
                 # text = process_url(url,doc_type)
                 document = {
                     "url": url,
-                    "title": title,
+                    "doc_id": i+1,
                     "type": doc_type,
                     "text": text
                 }
@@ -120,9 +130,9 @@ def batch_write_items_into_table(df, TableName):
             try:
                 batch.put_item(Item=item_data)
             except Exception as e:
-                print(f"Could not store data for row {i} in dynamodb table: {e}")
+                logger.warn(f"Could not store data for row {i} in dynamodb table: {e}")
     
-    print("All items added to the table successfully!")
+    logger.info("All items added to the table successfully!")  # Example log
 
 
 #Delete a table  
