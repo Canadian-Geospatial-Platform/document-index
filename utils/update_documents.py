@@ -25,61 +25,51 @@ async def update_single_document(document):
         new_text = await process_url(url, doc_type)
         document['text'] = new_text
 
-async def update_documents(TableName, last_updated_before=None):
+async def update_documents(ids, TableName):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(TableName)
     processed_items = []  # List to track processed items
-
-    if isinstance(last_updated_before, str):
-        last_updated_before = datetime.fromisoformat(last_updated_before)
-
+    
     logger.info("Starting the document update process")
-    response = table.scan()
-    items = response['Items']
-    count=0
-    checkpoint_size=100
-    for item in items:
-        updated_at = item.get('updated_at')
-        if updated_at:
-            updated_at = parse(updated_at)
-            if last_updated_before is None or updated_at < last_updated_before:
-                try:
-                    documents = item['documents']
-                    await asyncio.gather(*[update_single_document(document) for document in documents])
-                    new_updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    # table.update_item(
-                    #     Key={'features_properties_id': item['features_properties_id']},
-                    #     UpdateExpression='SET documents = :val1, updated_at = :val2',
-                    #     ExpressionAttributeValues={
-                    #         ':val1': documents,
-                    #         ':val2': new_updated_at
-                    #     }
-                    # )
-                    item['updated_at'] = new_updated_at
-                    item['documents'] = documents
-                    table.put_item(Item=item)
-                    processed_items.append(item["features_properties_id"])
-                    logger.info(f'Updated item: {item["features_properties_id"]}')
-                    count+=1
-                    print(count)
-                except Exception as e:
-                    logger.warn(f'unsucessfull attempt for {item["features_properties_id"]} error : {e}')
-        if count%checkpoint_size==0 and count>0:
-            save_checkpoint(processed_items)
-        
-        
-    logger.info("All applicable documents updated successfully")
+    count = 0
+    checkpoint_size = 20
+    
+    for features_properties_id in ids:
+        try:
+            # Retrieve item from DynamoDB table
+            response = table.get_item(Key={'features_properties_id': features_properties_id})
+            item = response.get('Item')
+            if not item:
+                logger.warn(f'Item not found: {features_properties_id}')
+                continue
+    
+            updated_at = item.get('updated_at')
+            if updated_at:
+                updated_at = parse(updated_at)
+    
+                documents = item['documents']
+                await asyncio.gather(*[update_single_document(document) for document in documents])
+                new_updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                item['updated_at'] = new_updated_at
+                item['documents'] = documents
+                table.put_item(Item=item)
+                processed_items.append(features_properties_id)
+                logger.info(f'Updated item: {features_properties_id}')
+                count += 1
+                print(count)
+    
+            if count % checkpoint_size == 0 and count > 0:
+                save_checkpoint(processed_items)
+    
+        except Exception as e:
+            logger.warn(f'Unsuccessful attempt for {features_properties_id} error: {e}')
+    
+    logger.info("Document update process completed")
 
     # Save processed items to a JSON file
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     filename = f"processed_items_{timestamp}.json"
-    with open(filename, 'w') as file:
-        json.dump(processed_items, file)
-    logger.info(f"Processed items saved to {filename}")
 
-    # Optionally, upload the file to S3
-    # s3_client = boto3.client('s3')
-    # bucket_name = 'your_bucket_name'
-    # s3_client.upload_file(filename, bucket_name, filename)
-    # logger.info(f"File uploaded to S3: {bucket_name}/{filename}")
+
+
 
